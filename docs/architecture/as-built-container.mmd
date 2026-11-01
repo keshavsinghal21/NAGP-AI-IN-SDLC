@@ -1,0 +1,31 @@
+flowchart LR
+    subgraph ExistingApp["EXISTING - current code\nbackend/src/InvoiceApp.Api + backend/src/InvoiceApp.Domain"]
+        Browser["Browser / static UI\nFile: backend/src/InvoiceApp.Api/wwwroot/app.js\nSymbols: api(), refresh(), renderPending(), decide(), signOut()"]
+        Api["ASP.NET Core API\nFile: backend/src/InvoiceApp.Api/Program.cs\nSymbols: Program, app.UseMiddleware<SessionAuthMiddleware>(), app.MapControllers()"]
+        AuthController["AuthController\nFile: backend/src/InvoiceApp.Api/Controllers/AuthController.cs\nSymbols: AuthController.Login, Logout"]
+        SessionMW["SessionAuthMiddleware\nFile: backend/src/InvoiceApp.Api/Auth/SessionAuthMiddleware.cs\nSymbols: SessionAuthMiddleware.InvokeAsync"]
+        RoleFilter["RequireRoleAttribute\nFile: backend/src/InvoiceApp.Api/Auth/RequireRoleAttribute.cs\nSymbols: RequireRoleAttribute.OnActionExecuting"]
+        ApprovalsController["ApprovalsController\nFile: backend/src/InvoiceApp.Api/Controllers/ApprovalsController.cs\nSymbols: ApprovalsController.Approve, Reject"]
+        InvoicesController["InvoicesController\nFile: backend/src/InvoiceApp.Api/Controllers/InvoicesController.cs\nSymbols: InvoicesController.Submit"]
+        SessionStore["SessionStore\nFile: backend/src/InvoiceApp.Api/Auth/SessionStore.cs\nSymbols: SessionStore.Create, Get, Remove"]
+        ApprovalService["ApprovalService\nFile: backend/src/InvoiceApp.Domain/ApprovalService.cs\nSymbols: ApprovalService.Approve, Reject, Submit"]
+        RepoContract["IInvoiceRepository\nFile: backend/src/InvoiceApp.Domain/IInvoiceRepository.cs\nSymbols: IInvoiceRepository.GetById, Update"]
+        RepoImpl["InMemoryInvoiceRepository\nFile: backend/src/InvoiceApp.Api/InMemoryInvoiceRepository.cs\nSymbols: InMemoryInvoiceRepository.GetById, Update"]
+        InvoiceModel["Invoice\nFile: backend/src/InvoiceApp.Domain/Invoice.cs\nSymbols: Invoice.Status, DecidedBy, DecidedAt"]
+        Config["Demo users and roles\nFile: backend/src/InvoiceApp.Api/appsettings.json\nSymbol: Users"]
+    end
+
+    Browser -->|API requests with bearer token| Api
+    Api -->|serves static files| Browser
+    Api -->|runs before controller actions| SessionMW
+    SessionMW -->|reads token from Authorization header| SessionStore
+    SessionMW -->|stores session in HttpContext.Items| RoleFilter
+    RoleFilter -->|checks session role| ApprovalsController
+    RoleFilter -->|checks session role| InvoicesController
+    AuthController -->|validates demo credentials| Config
+    AuthController -->|creates and removes bearer token sessions| SessionStore
+    ApprovalsController -->|calls service| ApprovalService
+    InvoicesController -->|calls service| ApprovalService
+    ApprovalService -->|uses repository contract| RepoContract
+    RepoContract -->|implemented by| RepoImpl
+    ApprovalService -->|updates invoice state| InvoiceModel

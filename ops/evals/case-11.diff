@@ -1,0 +1,11 @@
+
+diff --git a/backend/src/InvoiceApp.Domain/ApprovalService.cs b/backend/src/InvoiceApp.Domain/ApprovalService.cs
+--- a/backend/src/InvoiceApp.Domain/ApprovalService.cs
++++ b/backend/src/InvoiceApp.Domain/ApprovalService.cs
+@@ -31,4 +31,5 @@
+     public Invoice Approve(string invoiceId, string approver)
+     {
+-        var invoice = Find(invoiceId);
++        if (string.IsNullOrEmpty(approver)) throw new ArgumentException("An approver is required.", nameof(approver));
++        var invoice = Find(invoiceId);
+         EnsurePending(invoice);

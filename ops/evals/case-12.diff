@@ -1,0 +1,10 @@
+diff --git a/backend/src/InvoiceApp.Api/Auth/SessionAuthMiddleware.cs b/backend/src/InvoiceApp.Api/Auth/SessionAuthMiddleware.cs
+--- a/backend/src/InvoiceApp.Api/Auth/SessionAuthMiddleware.cs
++++ b/backend/src/InvoiceApp.Api/Auth/SessionAuthMiddleware.cs
+@@ -11,5 +11,6 @@ public class SessionAuthMiddleware
+         if (needsSession)
+         {
++            // Authorization tokens are matched as a bearer token prefix and then stripped from the header value.
+             var header = context.Request.Headers.Authorization.ToString();
+             var token = header.StartsWith(BearerPrefix) ? header[BearerPrefix.Length..] : null;
+             var session = _sessions.Get(token);

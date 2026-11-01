@@ -1,0 +1,28 @@
+flowchart LR
+    subgraph Existing["EXISTING - current code"]
+        Browser["Browser / static UI\nFile: backend/src/InvoiceApp.Api/wwwroot/app.js\nSymbols: api(), refresh(), decide()"]
+        Api["ASP.NET Core API\nFile: backend/src/InvoiceApp.Api/Program.cs\nSymbols: Program, app.MapControllers()"]
+        Auth["Session middleware + role filter\nFiles: backend/src/InvoiceApp.Api/Auth/SessionAuthMiddleware.cs and RequireRoleAttribute.cs"]
+        Service["ApprovalService\nFile: backend/src/InvoiceApp.Domain/ApprovalService.cs\nSymbols: ApprovalService.Approve, Reject, Submit"]
+        Repo["InMemoryInvoiceRepository\nFile: backend/src/InvoiceApp.Api/InMemoryInvoiceRepository.cs\nSymbol: InMemoryInvoiceRepository.Update"]
+    end
+
+    subgraph Proposed["PROPOSED - NOT IMPLEMENTED\nDocumented in ops/README.md"]
+        Db["Production database\nops/README.md - planned production component\nNot in current source code"]
+        Broker["Message topic / broker\nops/README.md - planned production component\nNot in current source code"]
+        Worker["Background worker / processing component\nProposed architecture connection, not explicitly implemented in the repo"]
+        PayEx["PayEx payment integration\nops/README.md - planned production integration\nNot in current source code"]
+    end
+
+    Browser -->|HTTP requests| Api
+    Api --> Auth
+    Api --> Service
+    Service --> Repo
+
+    %% Explicitly documented future components from ops/README.md
+    Service -. planned production workflow .-> Broker
+    Broker --> Worker
+    Worker --> Db
+    Worker --> PayEx
+
+    %% IMPORTANT: the README mentions the database, message topic, and PayEx integration as planned production items, but it does not describe a complete implementation design.

@@ -1,0 +1,61 @@
+sequenceDiagram
+    participant Browser as Browser / approver UI
+    participant Api as ASP.NET Core pipeline
+    participant Middleware as SessionAuthMiddleware
+    participant Store as SessionStore
+    participant Filter as RequireRoleAttribute
+    participant Controller as ApprovalsController
+    participant Handle as ApiControllerBase.Handle
+    participant Service as ApprovalService
+    participant RepoContract as IInvoiceRepository
+    participant RepoImpl as InMemoryInvoiceRepository
+    participant Response as HTTP response
+
+    Note over Browser,Response: Verified source files: Program.cs, SessionAuthMiddleware.cs, RequireRoleAttribute.cs, ApprovalsController.cs, ApiControllerBase.cs, ApprovalService.cs, InMemoryInvoiceRepository.cs
+
+    Browser->>Api: POST /api/approvals/{invoiceId}/approve
+    Api->>Middleware: request enters middleware
+    Middleware->>Store: Get(token)
+    Store-->>Middleware: UserSession(username, role) or null
+    alt Missing or invalid bearer token
+        Middleware-->>Response: HTTP 401 Unauthorized
+        Note right of Middleware: SessionAuthMiddleware.InvokeAsync checks token and returns StatusCodes.Status401Unauthorized when session is null.
+    else Token is valid
+        Middleware-->>Api: continue
+        Api->>Filter: OnActionExecuting
+        Filter->>Filter: session = HttpContext.Items["session"] as UserSession
+        alt Session missing or role not allowed
+            Filter-->>Response: HTTP 403 Forbidden
+            Note right of Filter: RequireRoleAttribute.OnActionExecuting sets StatusCodeResult(StatusCodes.Status403Forbidden) when session is null or role is not in the allowed set.
+        else Role allowed
+            Filter-->>Api: continue
+            Api->>Controller: ApprovalsController.Approve(invoiceId)
+            Controller->>Handle: Handle(() => _approvals.Approve(invoiceId, HttpContext.GetSession().Username))
+            Handle->>Service: _approvals.Approve(invoiceId, session.Username)
+            Service->>RepoContract: GetById(invoiceId)
+            RepoContract->>RepoImpl: InMemoryInvoiceRepository.GetById(id)
+            RepoImpl-->>Service: Invoice
+            Service->>Service: EnsurePending(invoice)
+            Service->>Service: set Status = Approved
+            Service->>Service: set DecidedBy = approver
+            Service->>Service: set DecidedAt = DateTime.UtcNow
+            Service->>RepoContract: Update(invoice)
+            RepoContract->>RepoImpl: InMemoryInvoiceRepository.Update(invoice)
+            RepoImpl-->>Service: void
+            alt Invoice not found
+                Service-->>Handle: throws KeyNotFoundException
+                Handle-->>Controller: NotFound(new { error = ex.Message })
+                Controller-->>Response: HTTP 404 Not Found
+            else Invoice not pending
+                Service-->>Handle: throws InvalidOperationException
+                Handle-->>Controller: Conflict(new { error = ex.Message })
+                Controller-->>Response: HTTP 409 Conflict
+            else Approval succeeds
+                Service-->>Handle: Invoice
+                Handle-->>Controller: Ok(updated Invoice)
+                Controller-->>Response: HTTP 200 OK + Invoice JSON
+            end
+        end
+    end
+
+    Note over Handle,Response: ApiControllerBase.Handle also catches ArgumentException and returns HTTP 400 Bad Request. This mapping is implemented in the base handler, even though the approve method itself does not throw ArgumentException in this path.
